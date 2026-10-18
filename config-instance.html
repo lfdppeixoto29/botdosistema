@@ -117,7 +117,7 @@
         let showSavedAlert = false;
 
         function carregarDados() {
-            fetch('/api/admin/data')
+            fetch('/api/admin/data?t=' + Date.now())
                 .then(res => res.json())
                 .then(data => {
                     allData = data;
