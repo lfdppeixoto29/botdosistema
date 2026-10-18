@@ -42,7 +42,7 @@ const instances = {};
 const CONFIG_FILE = path.join(__dirname, 'configs.json');
 
 // Configuração Padrão Absoluta (Caso o arquivo suma)
-const absoluteDefaultConfig = {
+const absoluteDefaultConfig = { // timestamp-1792330329338
   botName: "Luiz Fernando",
   lunchActive: true,
   lunchMsg: "🍽️ *Horário de Almoço*\n\nOlá! No momento estamos em horário de almoço (das 12h às 13h). Sua solicitação foi registrada e retornaremos às 13h!",
