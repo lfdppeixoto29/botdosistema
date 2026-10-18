@@ -9,10 +9,10 @@
         "title": "Trabalho",
         "link": "",
         "subRequests": [
-          { "title": "Informe Empresa", "description": "Identificação da empresa." },
-          { "title": "Dados de Equipamento", "description": "Dados técnicos de hardware." },
-          { "title": "Registo de Ocorrência", "description": "Detalhes da avaria ou anomalia." },
-          { "title": "Pedido de Configuração", "description": "Parâmetros de configuração." }
+          { "title": "Informe Empresa", "description": "Campo destinado à identificação da empresa associada ao atendimento." },
+          { "title": "Dados de Equipamento", "description": "Campo para recolha de dados técnicos de identificação de hardware ou equipamentos." },
+          { "title": "Registo de Ocorrência", "description": "Canal específico para o registo detalhado de ocorrências, avarias ou anomalias técnicas." },
+          { "title": "Pedido de Configuração", "description": "Espaço direcionado ao pedido ou à especificação de parâmetros de configuração." }
         ]
       },
       {
