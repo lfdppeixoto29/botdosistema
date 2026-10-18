@@ -37,7 +37,7 @@ function keepAlive() {
     } catch (e) {
       console.error('📡 Keep-Alive: Erro ao pingar auto-url.');
     }
-  }, 1000 * 30); // A cada 30 segundos para impedir absolutamente qualquer sleep da Render
+  }, 1000 * 30);
 }
 
 const instances = {};
