@@ -417,8 +417,15 @@ async function startBotInstance(instanceName, customConfig = null) {
           } else {
             session.clientName = messageText.trim();
             const subIdx = session.subReqIndex;
+            const opt = session.selectedOption;
             
-            if (subIdx === 0) {
+            // Se for Particular (opção 2 ou sem subRequests), vai direto para a IA coletar a dúvida
+            if (!opt || opt.id === "2" || !opt.subRequests || opt.subRequests.length === 0) {
+              session.step = 'AGUARDANDO_DADOS_DESCRICAO';
+              session.selectedSubRequest = { title: opt ? opt.title : 'Particular' };
+              session.subReqIndex = 99; // Indice especial para particular
+              replyText = `✅ Nome: *${session.clientName}*\n\nComo posso ajudar você hoje no setor Particular? Digite sua dúvida ou solicitação:`;
+            } else if (subIdx === 0) {
               session.step = 'AGUARDANDO_EMPRESA_NOME';
               replyText = `✅ Nome: *${session.clientName}*\n\n🏢 *Formulário de Identificação da Empresa*\n━━━━━━━━━━━━━━━━━━━━━━━\n*Passo 1/3:* Por favor, informe o **Nome da Empresa**:`;
             } else if (subIdx === 1) {
