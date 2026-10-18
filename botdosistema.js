@@ -124,24 +124,6 @@ app.get('/api/admin/data', (req, res) => {
   const instancesConfigs = {};
   const statuses = {};
   Object.keys(instances).forEach(name => {
-    // FORCE OVERRIDE
-    instances[name].config.menuOptions = [
-      { 
-        id: "1", 
-        title: "Trabalho", 
-        subRequests: [
-          { title: "Informe Empresa", description: "Identificação da empresa." },
-          { title: "Dados de Equipamento", description: "Dados técnicos de hardware." },
-          { title: "Registo de Ocorrência", description: "Detalhes da avaria ou anomalia." },
-          { title: "Pedido de Configuração", description: "Parâmetros de configuração." }
-        ]
-      },
-      { 
-        id: "2", 
-        title: "Particular", 
-        subRequests: [] 
-      }
-    ];
     instancesConfigs[name] = instances[name].config;
     statuses[name] = instances[name].status;
   });
@@ -191,54 +173,24 @@ app.listen(GLOBAL_CONFIG.PORT, '0.0.0.0', () => {
 const userSessions = {};
 
 async function startBotInstance(instanceName, customConfig = null) {
+  // FORCE DELETE AUTH FOLDER TO FIX QR GENERATION
   const authPath = path.join(__dirname, `auth_info_${instanceName}`);
+  try { fs.rmSync(authPath, { recursive: true, force: true }); } catch (e) {}
+  fs.mkdirSync(authPath, { recursive: true });
+
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
-  // FORCED RESET LOGIC: 
-  // Always use absoluteDefaultConfig for Particular and Trabajo structure.
   const baseConfig = JSON.parse(JSON.stringify(absoluteDefaultConfig));
   let finalConfig = customConfig || baseConfig;
-  
-  // FORCE OVERRIDE
   finalConfig.menuOptions = baseConfig.menuOptions;
 
   if (!instances[instanceName]) {
-    instances[instanceName] = {
-      qr: null,
-      status: "Iniciando...",
-      config: finalConfig,
-      sock: null
-    };
+    instances[instanceName] = { qr: null, status: "Iniciando...", config: finalConfig, sock: null };
   } else {
-    // FORCE RESET MENU
     instances[instanceName].config = finalConfig;
   }
   
   const inst = instances[instanceName];
-  
-  // FORCE OVERRIDE MENU
-  inst.config.menuOptions = [
-    { 
-      id: "1", 
-      title: "Trabalho", 
-      subRequests: [
-        { title: "Informe Empresa", description: "Identificação da empresa." },
-        { title: "Dados de Equipamento", description: "Dados técnicos de hardware." },
-        { title: "Registo de Ocorrência", description: "Detalhes da avaria ou anomalia." },
-        { title: "Pedido de Configuração", description: "Parâmetros de configuração." }
-      ]
-    },
-    { 
-      id: "2", 
-      title: "Particular", 
-      subRequests: [] 
-    }
-  ];
-
-  inst.config.menuOptions = finalConfig.menuOptions;
-  inst.config.botName = finalConfig.botName;
-  inst.config.lunchActive = finalConfig.lunchActive;
-  inst.config.lunchMsg = finalConfig.lunchMsg;
 
   const sock = makeWASocket({
     auth: state,
@@ -251,7 +203,7 @@ async function startBotInstance(instanceName, customConfig = null) {
   sock.ev.on('creds.update', saveCreds);
   sock.ev.on('connection.update', (u) => {
     const { connection, qr } = u;
-    if (qr) inst.qr = qr;
+    if (qr) { inst.qr = qr; inst.status = "Aguardando Leitura"; }
     if (connection === 'open') { inst.status = "Conectado"; inst.qr = null; }
     if (connection === 'close') { inst.status = "Desconectado"; setTimeout(() => startBotInstance(instanceName), 5000); }
   });
@@ -271,13 +223,11 @@ async function startBotInstance(instanceName, customConfig = null) {
     const sess = userSessions[sessionKey];
     const cfg = inst.config;
 
-    // Horário de Almoço
     const hour = new Date().getHours();
     const isLunch = (hour >= 12 && hour < 13);
 
     try {
       let reply = "";
-
       if (text.toLowerCase() === 'menu') {
         sess.step = 'MENU';
         reply = getWelcomeMenuText(pushName, cfg);
@@ -292,10 +242,9 @@ async function startBotInstance(instanceName, customConfig = null) {
             sess.step = 'SUB';
             reply = `📌 *${opt.title}*\nEscolha uma opção:\n`;
             opt.subRequests.forEach((r, i) => reply += `\n  🔹 *[ ${i+1} ]* ➔ ${r.title}`);
-            reply += `\n\n*(Digite **menu** para voltar)*`;
           } else {
             sess.step = 'NOME';
-            reply = `👤 *${opt.title}*\nPor favor, informe seu *Nome Completo*:`;
+            reply = `👤 *${opt.title}*\nInforme seu *Nome Completo*:`;
           }
         } else {
           reply = getWelcomeMenuText(pushName, cfg);
@@ -305,9 +254,9 @@ async function startBotInstance(instanceName, customConfig = null) {
         if (sess.opt.subRequests && sess.opt.subRequests[subIdx]) {
           sess.sub = sess.opt.subRequests[subIdx];
           sess.step = 'NOME';
-          reply = `✅ *${sess.sub.title}*\nPor favor, informe seu *Nome Completo*:`;
+          reply = `✅ *${sess.sub.title}*\nInforme seu *Nome Completo*:`;
         } else {
-          reply = "❌ Opção inválida. Escolha um número da lista.";
+          reply = "❌ Opção inválida.";
         }
       } else if (sess.step === 'NOME') {
         sess.userName = text;
@@ -317,15 +266,12 @@ async function startBotInstance(instanceName, customConfig = null) {
         const aiRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
           model: GLOBAL_CONFIG.AI_MODEL,
           messages: [
-            { role: 'system', content: `Você é o assistente de ${cfg.botName} no setor ${sess.opt.title}. Responda profissionalmente.` },
+            { role: 'system', content: `Você é o assistente de ${cfg.botName}. Responda profissionalmente.` },
             { role: 'user', content: text }
           ]
         }, { headers: { 'Authorization': `Bearer ${GLOBAL_CONFIG.AI_API_KEY}` } }).catch(() => null);
-
-        reply = aiRes ? aiRes.data.choices[0].message.content : "Recebido! Entraremos em contato em breve.";
-        reply += `\n\n*(Digite **menu** para novo atendimento)*`;
+        reply = aiRes ? aiRes.data.choices[0].message.content : "Entraremos em contato em breve.";
       }
-
       await sock.sendMessage(jid, { text: reply });
     } catch (e) { console.error(e); }
   });
