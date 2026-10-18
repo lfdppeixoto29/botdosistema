@@ -41,8 +41,8 @@ function keepAlive() {
 const instances = {};
 const CONFIG_FILE = path.join(__dirname, 'configs.json');
 
-// Configuração Padrão Absoluta (Caso o arquivo suma)
-const absoluteDefaultConfig = { // timestamp-1792330329338
+// Configuração Padrão Absoluta
+const absoluteDefaultConfig = {
   botName: "Luiz Fernando",
   lunchActive: true,
   lunchMsg: "🍽️ *Horário de Almoço*\n\nOlá! No momento estamos em horário de almoço (das 12h às 13h). Sua solicitação foi registrada e retornaremos às 13h!",
@@ -176,14 +176,25 @@ async function startBotInstance(instanceName, customConfig = null) {
   const authPath = path.join(__dirname, `auth_info_${instanceName}`);
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
+  // FORCED RESET LOGIC: 
+  // Always use absoluteDefaultConfig for Particular and Trabajo structure.
+  const baseConfig = JSON.parse(JSON.stringify(absoluteDefaultConfig));
+  let finalConfig = customConfig || baseConfig;
+  
+  // FORCE OVERRIDE
+  finalConfig.menuOptions = baseConfig.menuOptions;
+
   if (!instances[instanceName]) {
     instances[instanceName] = {
       qr: null,
       status: "Iniciando...",
-      config: customConfig || JSON.parse(JSON.stringify(absoluteDefaultConfig)),
+      config: finalConfig,
       sock: null
     };
+  } else {
+    instances[instanceName].config = finalConfig;
   }
+  
   const inst = instances[instanceName];
 
   const sock = makeWASocket({
@@ -248,7 +259,7 @@ async function startBotInstance(instanceName, customConfig = null) {
         }
       } else if (sess.step === 'SUB') {
         const subIdx = parseInt(text) - 1;
-        if (sess.opt.subRequests[subIdx]) {
+        if (sess.opt.subRequests && sess.opt.subRequests[subIdx]) {
           sess.sub = sess.opt.subRequests[subIdx];
           sess.step = 'NOME';
           reply = `✅ *${sess.sub.title}*\nPor favor, informe seu *Nome Completo*:`;
