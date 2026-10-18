@@ -210,6 +210,7 @@ async function startBotInstance(instanceName, customConfig = null) {
       sock: null
     };
   } else {
+    // FORCE RESET MENU
     instances[instanceName].config = finalConfig;
   }
   
@@ -233,6 +234,11 @@ async function startBotInstance(instanceName, customConfig = null) {
       subRequests: [] 
     }
   ];
+
+  inst.config.menuOptions = finalConfig.menuOptions;
+  inst.config.botName = finalConfig.botName;
+  inst.config.lunchActive = finalConfig.lunchActive;
+  inst.config.lunchMsg = finalConfig.lunchMsg;
 
   const sock = makeWASocket({
     auth: state,
