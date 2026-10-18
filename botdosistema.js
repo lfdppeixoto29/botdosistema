@@ -76,7 +76,11 @@ function loadConfigsFromDisk() {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
       const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
-      return JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      // Garantir que a instância principal mantenha as customizações salvas
+      if (parsed.principal) {
+        return parsed;
+      }
     }
   } catch (err) {}
   return { principal: absoluteDefaultConfig };
