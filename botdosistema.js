@@ -191,7 +191,7 @@ async function startBotInstance(instanceName, customConfig = null) {
     auth: state,
     logger: pino({ level: 'silent' }),
     printQRInTerminal: true,
-    browser: ["Ubuntu", "Chrome", "20.0.0"]
+    browser: ["Chrome (Linux)", "Chrome", "120.0.0.0"]
   });
 
   inst.sock = sock;
