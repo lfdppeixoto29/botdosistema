@@ -130,13 +130,14 @@ app.post('/api/admin/config', (req, res) => {
   if (!instances[instanceName]) return res.status(400).json({ error: "Inválido" });
 
   const cfg = instances[instanceName].config;
-  if (botName) cfg.botName = botName;
+  if (botName !== undefined) cfg.botName = botName;
   cfg.lunchActive = !!lunchActive;
-  if (lunchMsg) cfg.lunchMsg = lunchMsg;
-  if (menuOptions) cfg.menuOptions = menuOptions;
+  if (lunchMsg !== undefined) cfg.lunchMsg = lunchMsg;
+  if (menuOptions !== undefined) cfg.menuOptions = menuOptions;
 
   saveConfigsToDisk();
-  res.json({ success: true, message: "Salvo!" });
+  console.log(`[CONFIG] Configuração salva para ${instanceName}:`, JSON.stringify(cfg, null, 2));
+  res.json({ success: true, message: "Salvo com sucesso!" });
 });
 
 app.post('/api/instances', (req, res) => {
