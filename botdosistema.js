@@ -41,7 +41,7 @@ function keepAlive() {
 const instances = {};
 const CONFIG_FILE = path.join(__dirname, 'configs.json');
 
-// Configuração Padrão Absoluta
+// CONFIGURAÇÃO HARDCODED DEFINITIVA (SEM MENU DE TRABALHO)
 const absoluteDefaultConfig = {
   botName: "Luiz Fernando",
   lunchActive: true,
@@ -50,17 +50,12 @@ const absoluteDefaultConfig = {
     { 
       id: "1", 
       title: "Trabalho", 
-      subRequests: [
-        { title: "Informe Empresa", description: "Identificação da empresa." },
-        { title: "Dados de Equipamento", description: "Dados técnicos de hardware." },
-        { title: "Registo de Ocorrência", description: "Detalhes da avaria ou anomalia." },
-        { title: "Pedido de Configuração", description: "Parâmetros de configuração." }
-      ]
+      subRequests: [] // MENU DE TRABALHO REMOVIDO: VAI DIRETO PARA IA
     },
     { 
       id: "2", 
       title: "Particular", 
-      subRequests: [] 
+      subRequests: [] // PARTICULAR SEM SUBMENUS
     }
   ]
 };
@@ -180,14 +175,13 @@ async function startBotInstance(instanceName, customConfig = null) {
 
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
-  const baseConfig = JSON.parse(JSON.stringify(absoluteDefaultConfig));
-  let finalConfig = customConfig || baseConfig;
-  finalConfig.menuOptions = baseConfig.menuOptions;
+  // USA A CONFIGURAÇÃO CARREGADA DO DISCO OU PADRÃO SEM FORÇAR SOBRESCRITA
+  const loadedConfig = customConfig || loadConfigsFromDisk()[instanceName] || absoluteDefaultConfig;
 
   if (!instances[instanceName]) {
-    instances[instanceName] = { qr: null, status: "Iniciando...", config: finalConfig, sock: null };
+    instances[instanceName] = { qr: null, status: "Iniciando...", config: loadedConfig, sock: null };
   } else {
-    instances[instanceName].config = finalConfig;
+    instances[instanceName].config = loadedConfig;
   }
   
   const inst = instances[instanceName];
@@ -201,11 +195,29 @@ async function startBotInstance(instanceName, customConfig = null) {
 
   inst.sock = sock;
   sock.ev.on('creds.update', saveCreds);
+  
   sock.ev.on('connection.update', (u) => {
-    const { connection, qr } = u;
-    if (qr) { inst.qr = qr; inst.status = "Aguardando Leitura"; }
-    if (connection === 'open') { inst.status = "Conectado"; inst.qr = null; }
-    if (connection === 'close') { inst.status = "Desconectado"; setTimeout(() => startBotInstance(instanceName), 5000); }
+    const { connection, qr, lastDisconnect } = u;
+    console.log(`[BOT LOG] Connection Status: ${connection}, QR Received: ${!!qr}`);
+    
+    if (qr) { 
+      inst.qr = qr; 
+      inst.status = "Aguardando Leitura"; 
+      console.log('[BOT LOG] QR Code stored in memory');
+    }
+    
+    if (connection === 'open') { 
+      inst.status = "Conectado"; 
+      inst.qr = null; 
+      console.log('[BOT LOG] WhatsApp Connected');
+    }
+    
+    if (connection === 'close') { 
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      console.log(`[BOT LOG] Connection Closed, Code: ${statusCode}`);
+      inst.status = "Desconectado"; 
+      setTimeout(() => startBotInstance(instanceName), 5000); 
+    }
   });
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
