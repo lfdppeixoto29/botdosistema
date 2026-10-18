@@ -70,9 +70,13 @@ function loadConfigsFromDisk() {
     if (!fs.existsSync(CONFIG_FILE)) {
       const initial = { principal: absoluteDefaultConfig };
       fs.writeFileSync(CONFIG_FILE, JSON.stringify(initial, null, 2));
+      return initial;
     }
     const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
     const parsed = JSON.parse(raw);
+    if (parsed && parsed.principal && (!parsed.principal.menuOptions || parsed.principal.menuOptions.length === 0)) {
+      parsed.principal.menuOptions = absoluteDefaultConfig.menuOptions;
+    }
     return parsed;
   } catch (err) {
     console.error('❌ Erro ao carregar configs do disco:', err);
