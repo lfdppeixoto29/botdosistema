@@ -27,7 +27,7 @@ const GLOBAL_CONFIG = {
   AI_MODEL: "llama-3.1-8b-instant"
 };
 
-// 1. AUTO PING / KEEP-ALIVE (Para nunca desconectar no Render)
+// 1. AUTO PING / KEEP-ALIVE & PERSISTENCE FIX
 function keepAlive() {
   const url = `https://botdosistema-luiz.onrender.com/ping`;
   setInterval(async () => {
@@ -37,7 +37,7 @@ function keepAlive() {
     } catch (e) {
       console.error('📡 Keep-Alive: Erro ao pingar auto-url.');
     }
-  }, 1000 * 60 * 4); // A cada 4 minutos
+  }, 1000 * 30); // A cada 30 segundos para impedir absolutamente qualquer sleep da Render
 }
 
 const instances = {};
