@@ -124,6 +124,24 @@ app.get('/api/admin/data', (req, res) => {
   const instancesConfigs = {};
   const statuses = {};
   Object.keys(instances).forEach(name => {
+    // FORCE OVERRIDE
+    instances[name].config.menuOptions = [
+      { 
+        id: "1", 
+        title: "Trabalho", 
+        subRequests: [
+          { title: "Informe Empresa", description: "Identificação da empresa." },
+          { title: "Dados de Equipamento", description: "Dados técnicos de hardware." },
+          { title: "Registo de Ocorrência", description: "Detalhes da avaria ou anomalia." },
+          { title: "Pedido de Configuração", description: "Parâmetros de configuração." }
+        ]
+      },
+      { 
+        id: "2", 
+        title: "Particular", 
+        subRequests: [] 
+      }
+    ];
     instancesConfigs[name] = instances[name].config;
     statuses[name] = instances[name].status;
   });
@@ -196,6 +214,25 @@ async function startBotInstance(instanceName, customConfig = null) {
   }
   
   const inst = instances[instanceName];
+  
+  // FORCE OVERRIDE MENU
+  inst.config.menuOptions = [
+    { 
+      id: "1", 
+      title: "Trabalho", 
+      subRequests: [
+        { title: "Informe Empresa", description: "Identificação da empresa." },
+        { title: "Dados de Equipamento", description: "Dados técnicos de hardware." },
+        { title: "Registo de Ocorrência", description: "Detalhes da avaria ou anomalia." },
+        { title: "Pedido de Configuração", description: "Parâmetros de configuração." }
+      ]
+    },
+    { 
+      id: "2", 
+      title: "Particular", 
+      subRequests: [] 
+    }
+  ];
 
   const sock = makeWASocket({
     auth: state,
