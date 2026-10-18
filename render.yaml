@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: botdosistema-luiz
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node botdosistema.js
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: AI_API_KEY
+        sync: false

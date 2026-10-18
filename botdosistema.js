@@ -27,6 +27,19 @@ const GLOBAL_CONFIG = {
   AI_MODEL: "llama-3.1-8b-instant"
 };
 
+// 1. AUTO PING / KEEP-ALIVE (Para nunca desconectar no Render)
+function keepAlive() {
+  const url = `https://botdosistema-luiz.onrender.com/ping`;
+  setInterval(async () => {
+    try {
+      await axios.get(url);
+      console.log('📡 Keep-Alive: Ping enviado com sucesso para manter o servidor acordado.');
+    } catch (e) {
+      console.error('📡 Keep-Alive: Erro ao pingar auto-url.');
+    }
+  }, 1000 * 60 * 4); // A cada 4 minutos
+}
+
 const instances = {};
 const CONFIG_FILE = path.join(__dirname, 'configs.json');
 
@@ -35,23 +48,8 @@ const absoluteDefaultConfig = {
   lunchActive: true,
   lunchMsg: "🍽️ *Horário de Almoço*\n\nOlá! No momento estamos em horário de almoço (das 12h às 13h). Sua solicitação foi registrada e retornaremos às 13h!",
   menuOptions: [
-    { 
-      id: "1", 
-      title: "Trabalho", 
-      link: "", 
-      subRequests: [
-        { title: "Informe Empresa", description: "Campo destinado à identificação da empresa associada ao atendimento." },
-        { title: "Dados de Equipamento", description: "Campo para recolha de dados técnicos de identificação de hardware ou equipamentos." },
-        { title: "Registo de Ocorrência", description: "Canal específico para o registo detalhado de ocorrências, avarias ou anomalias técnicas." },
-        { title: "Pedido de Configuração", description: "Espaço direcionado ao pedido ou à especificação de parâmetros de configuração." }
-      ]
-    },
-    { 
-      id: "2", 
-      title: "Particular", 
-      link: "", 
-      subRequests: [] 
-    }
+    { id: "1", title: "Trabalho", link: "", message: "Setor de Trabalho selecionado. Como posso ajudar?" },
+    { id: "2", title: "Particular", link: "", message: "Setor Particular selecionado. Como posso ajudar?" }
   ]
 };
 
@@ -75,9 +73,6 @@ function loadConfigsFromDisk() {
     }
     const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.principal) {
-      parsed.principal.menuOptions = absoluteDefaultConfig.menuOptions;
-    }
     return parsed;
   } catch (err) {
     console.error('❌ Erro ao carregar configs do disco:', err);
@@ -113,6 +108,10 @@ app.use((req, res, next) => {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   next();
+});
+
+app.get('/ping', (req, res) => {
+  res.send('pong');
 });
 
 app.get('/', (req, res) => {
@@ -199,6 +198,7 @@ app.get('/qr/:name', async (req, res) => {
 
 app.listen(GLOBAL_CONFIG.PORT, '0.0.0.0', () => {
   console.log(`🌐 Servidor "botdosistema" online na porta ${GLOBAL_CONFIG.PORT}`);
+  keepAlive();
   
   const savedConfigs = loadConfigsFromDisk();
   if (savedConfigs && Object.keys(savedConfigs).length > 0) {
@@ -227,8 +227,6 @@ async function startBotInstance(instanceName, customConfig = null) {
     } else if (customConfig) {
       instances[instanceName].config = customConfig;
     }
-    instances[instanceName].config.menuOptions = absoluteDefaultConfig.menuOptions;
-
     const inst = instances[instanceName];
 
     if (inst.sock) {
@@ -335,7 +333,6 @@ async function startBotInstance(instanceName, customConfig = null) {
         if (exitKeywords.includes(messageText.toLowerCase())) {
           session.step = 'MENU_INICIAL';
           session.selectedOption = null;
-          session.selectedSubRequest = null;
           replyText = getWelcomeMenuText(pushName, activeConfig);
         }
         else if (session.step === 'MENU_INICIAL') {
@@ -343,170 +340,56 @@ async function startBotInstance(instanceName, customConfig = null) {
 
           if (matchedOption) {
             session.selectedOption = matchedOption;
-            if (matchedOption.subRequests && matchedOption.subRequests.length > 0) {
-              session.step = 'AGUARDANDO_SOLICITACAO';
-              replyText = `📌 *Setor Selecionado: ${matchedOption.title}*\n`;
-              replyText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
-              replyText += `Por favor, escolha o tipo de solicitação enviando o número correspondente:\n`;
-              
-              matchedOption.subRequests.forEach((req, idx) => {
-                const tagObrigatorio = (idx < 3) ? '*(Obrigatório)*' : '*(Opcional)*';
-                replyText += `\n  🔹 *[ ${idx + 1} ]* ➔ ${req.title} ${tagObrigatorio}`;
-                if (req.description) {
-                  replyText += `\n     _↳ ${req.description}_`;
-                }
-              });
-              replyText += `\n\n────────────────────────\n*(Digite **menu** para retornar)*`;
+            
+            // Regra de Horário de Almoço (Somente se ativo e for Trabalho)
+            const isTrabalho = matchedOption.title.toLowerCase().includes('trabalho');
+            if (activeConfig.lunchActive && isTrabalho && isLunchTime) {
+              replyText = `${activeConfig.lunchMsg}\n\n*(Digite **menu** para voltar)*`;
             } else {
-              session.step = 'AGUARDANDO_DADOS_NOME';
-              replyText = `📋 *Atendimento: ${matchedOption.title}*\n━━━━━━━━━━━━━━━━━━━━━━━\nPor favor, informe o seu *Nome Completo*:`;
+              session.step = 'AGUARDANDO_DUVIDA';
+              replyText = `📁 *Setor: ${matchedOption.title}*\n`;
+              replyText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
+              
+              if (matchedOption.message) {
+                replyText += `${matchedOption.message}\n\n`;
+              } else {
+                replyText += `Como posso ajudar você neste setor? Por favor, descreva sua dúvida ou solicitação:\n\n`;
+              }
+              
+              if (matchedOption.link) {
+                replyText += `🔗 *Link Útil:* ${matchedOption.link}\n\n`;
+              }
+              
+              replyText += `────────────────────────\n*(Digite **menu** para retornar)*`;
             }
           } else {
             replyText = getWelcomeMenuText(pushName, activeConfig);
           }
         } 
-        else if (session.step === 'AGUARDANDO_SOLICITACAO') {
+        else if (session.step === 'AGUARDANDO_DUVIDA') {
           const opt = session.selectedOption;
-          const reqIndex = parseInt(messageText) - 1;
-
-          if (opt && opt.subRequests && opt.subRequests[reqIndex]) {
-            const selectedReq = opt.subRequests[reqIndex];
-            session.selectedSubRequest = selectedReq;
-            session.subReqIndex = reqIndex; 
-            session.step = 'AGUARDANDO_DADOS_NOME';
-
-            replyText = `✅ *Solicitação: ${selectedReq.title}*\n`;
-            replyText += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
-            replyText += `Por favor, informe o seu *Nome Completo*:`;
-          } else {
-            replyText = `❌ Opção inválida. Escolha um número válido:\n`;
-            opt.subRequests.forEach((req, idx) => {
-              const tagObrigatorio = (idx < 3) ? '*(Obrigatório)*' : '*(Opcional)*';
-              replyText += `\n  🔹 *[ ${idx + 1} ]* ➔ ${req.title} ${tagObrigatorio}`;
-              if (req.description) {
-                replyText += `\n     _↳ ${req.description}_`;
+          try {
+            const contextTitle = opt ? opt.title : 'Geral';
+            const aiRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
+              model: GLOBAL_CONFIG.AI_MODEL,
+              messages: [
+                { role: 'system', content: `Você é o assistente de ${activeConfig.botName} no setor "${contextTitle}". Responda de forma profissional, educada e prestativa em português do Brasil.` },
+                { role: 'user', content: messageText }
+              ],
+              temperature: 0.4
+            }, {
+              headers: { 
+                'Authorization': `Bearer ${GLOBAL_CONFIG.AI_API_KEY}`,
+                'Content-Type': 'application/json'
               }
             });
-          }
-        }
-        else if (session.step === 'AGUARDANDO_DADOS_NOME') {
-          if (!messageText || messageText.length < 2) {
-            replyText = `⚠️ Digite um *Nome Completo* válido para prosseguir:`;
-          } else {
-            session.clientName = messageText.trim();
-            const subIdx = session.subReqIndex;
-            
-            if (subIdx === 0) {
-              session.step = 'AGUARDANDO_EMPRESA_NOME';
-              replyText = `✅ Nome: *${session.clientName}*\n\n🏢 *Formulário de Identificação da Empresa*\n━━━━━━━━━━━━━━━━━━━━━━━\n*Passo 1/3:* Por favor, informe o **Nome da Empresa**:`;
-            } else if (subIdx === 1) {
-              session.step = 'AGUARDANDO_DADOS_DESCRICAO';
-              replyText = `✅ Nome: *${session.clientName}*\n\n💻 *Dados de Equipamento (Obrigatório)*:\nPor favor, informe os **dados técnicos de hardware ou equipamento**:`;
-            } else if (subIdx === 2) {
-              session.step = 'AGUARDANDO_DADOS_DESCRICAO';
-              replyText = `✅ Nome: *${session.clientName}*\n\n⚠️ *Registo de Ocorrência (Obrigatório)*:\nPor favor, descreva detalhadamente a **ocorrência, avaria ou anomalia técnica**:`;
-            } else if (subIdx === 3) {
-              session.step = 'AGUARDANDO_DADOS_DESCRICAO';
-              replyText = `✅ Nome: *${session.clientName}*\n\n⚙️ *Pedido de Configuração (Opcional)*:\nPor favor, especifique os **parâmetros de configuração** desejados (ou digite *pular*):`;
-            } else {
-              session.step = 'AGUARDANDO_DADOS_DESCRICAO';
-              replyText = `✅ Nome: *${session.clientName}*\n\nPor favor, digite os detalhes da sua solicitação:`;
-            }
-          }
-        }
-        else if (session.step === 'AGUARDANDO_EMPRESA_NOME') {
-          if (!messageText || messageText.length < 2) {
-            replyText = `⚠️ Por favor, informe um *Nome de Empresa* válido:`;
-          } else {
-            session.empresaNome = messageText.trim();
-            session.step = 'AGUARDANDO_EMPRESA_CNPJ';
-            replyText = `🏢 Empresa: *${session.empresaNome}*\n\n*Passo 2/3:* Por favor, informe o **CNPJ ou NIF** da empresa:`;
-          }
-        }
-        else if (session.step === 'AGUARDANDO_EMPRESA_CNPJ') {
-          if (!messageText || messageText.length < 5) {
-            replyText = `⚠️ Por favor, informe um *CNPJ / NIF* válido:`;
-          } else {
-            session.empresaCnpj = messageText.trim();
-            session.step = 'AGUARDANDO_EMPRESA_SETOR';
-            replyText = `📋 CNPJ/NIF: *${session.empresaCnpj}*\n\n*Passo 3/3:* Por favor, informe o **Setor ou Responsável** na empresa:`;
-          }
-        }
-        else if (session.step === 'AGUARDANDO_EMPRESA_SETOR') {
-          if (!messageText || messageText.length < 2) {
-            replyText = `⚠️ Por favor, informe o *Setor ou Responsável*:`;
-          } else {
-            session.empresaSetor = messageText.trim();
-            session.clientDetails = `Empresa: ${session.empresaNome} | CNPJ/NIF: ${session.empresaCnpj} | Setor/Resp: ${session.empresaSetor}`;
-            
-            const opt = session.selectedOption;
-            const subReq = session.selectedSubRequest;
 
-            try {
-              const contextTitle = `${opt.title} > ${subReq.title}`;
-              const aiRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                model: GLOBAL_CONFIG.AI_MODEL,
-                messages: [
-                  { role: 'system', content: `Você é o assistente de ${activeConfig.botName} no setor "${contextTitle}". Responda de forma profissional e educada em português do Brasil confirmando o cadastro.` },
-                  { role: 'user', content: `Cliente: ${session.clientName}\nDados da Empresa: ${session.clientDetails}` }
-                ],
-                temperature: 0.4
-              }, {
-                headers: { 'Authorization': `Bearer ${GLOBAL_CONFIG.AI_API_KEY}` }
-              });
+            replyText = `${aiRes.data.choices[0].message.content}`;
+            replyText += `\n\n────────────────────────\n_💡 Digite sua próxima dúvida ou **menu** para voltar._`;
 
-              replyText = `🎉 *Cadastro de Empresa Concluído com Sucesso!*\n━━━━━━━━━━━━━━━━━━━━━━━\n👤 *Nome:* ${session.clientName}\n🏢 *Empresa:* ${session.empresaNome}\n📄 *CNPJ/NIF:* ${session.empresaCnpj}\n👤 *Setor/Resp:* ${session.empresaSetor}\n\n🤖 *Resposta:* ${aiRes.data.choices[0].message.content}`;
-
-            } catch (err) {
-              replyText = `🎉 *Dados da Empresa Registrados com Sucesso!*\n━━━━━━━━━━━━━━━━━━━━━━━\n👤 *Nome:* ${session.clientName}\n🏢 *Empresa:* ${session.empresaNome}\n📄 *CNPJ/NIF:* ${session.empresaCnpj}\n👤 *Setor/Resp:* ${session.empresaSetor}\n\nNossa equipe recebeu os dados cadastrais e retornará em breve.`;
-            }
-
-            session.step = 'MENU_INICIAL';
-            session.selectedOption = null;
-            session.selectedSubRequest = null;
-            session.subReqIndex = null;
-            session.clientName = null;
-            session.clientDetails = null;
-          }
-        }
-        else if (session.step === 'AGUARDANDO_DADOS_DESCRICAO') {
-          const subIdx = session.subReqIndex;
-          const isOpcional = (subIdx === 3);
-          const userSkipped = ['pular', 'pulo', 'nenhum', 'nao', 'não', '-'].includes(messageText.toLowerCase().trim());
-
-          if (!isOpcional && (!messageText || messageText.length < 3)) {
-            replyText = `⚠️ Esta informação é **obrigatória**. Por favor, forneça as informações completas para prosseguir:`;
-          } else {
-            session.clientDetails = userSkipped ? 'Não informado pelo cliente (Opcional)' : messageText.trim();
-            const opt = session.selectedOption;
-            const subReq = session.selectedSubRequest;
-
-            try {
-              const contextTitle = subReq ? `${opt.title} > ${subReq.title}` : opt.title;
-              const aiRes = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                model: GLOBAL_CONFIG.AI_MODEL,
-                messages: [
-                  { role: 'system', content: `Você é o assistente de ${activeConfig.botName} no setor "${subReq.title}". Responda de forma profissional e educada em português do Brasil confirmando o registro.` },
-                  { role: 'user', content: `Cliente: ${session.clientName}\nDados fornecidos: ${session.clientDetails}` }
-                ],
-                temperature: 0.4
-              }, {
-                headers: { 'Authorization': `Bearer ${GLOBAL_CONFIG.AI_API_KEY}` }
-              });
-
-              replyText = `🎉 *Atendimento Concluído com Sucesso!*\n━━━━━━━━━━━━━━━━━━━━━━━\n👤 *Nome:* ${session.clientName}\n📌 *Setor:* ${subReq.title}\n📝 *Registro:* ${session.clientDetails}\n\n🤖 *Resposta:* ${aiRes.data.choices[0].message.content}`;
-
-            } catch (err) {
-              const contextTitle = subReq ? subReq.title : (opt ? opt.title : 'Geral');
-              replyText = `🎉 *Solicitação Registrada com Sucesso!*\n━━━━━━━━━━━━━━━━━━━━━━━\n👤 *Nome:* ${session.clientName}\n📌 *Setor:* ${contextTitle}\n📝 *Registro:* ${session.clientDetails}\n\nNossa equipe recebeu suas informações e retornará em breve.`;
-            }
-
-            session.step = 'MENU_INICIAL';
-            session.selectedOption = null;
-            session.selectedSubRequest = null;
-            session.subReqIndex = null;
-            session.clientName = null;
-            session.clientDetails = null;
+          } catch (err) {
+            console.error('❌ Erro Groq AI:', err.message);
+            replyText = `Recebi sua solicitação, mas estou com uma instabilidade momentânea no processamento de IA. Pode repetir, por favor?\n\n*(Ou digite **menu** para voltar)*`;
           }
         }
 
