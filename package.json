@@ -1,8 +1,8 @@
 {
   "name": "evolution-bot",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Bot simples em arquivo único para Evolution API + OpenAI",
-  "main": "server.js",
+  "main": "botdosistema.js",
   "scripts": {
     "start": "node botdosistema.js"
   },
