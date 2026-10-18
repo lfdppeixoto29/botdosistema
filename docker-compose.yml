@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - AI_API_KEY=${AI_API_KEY}
+    restart: always

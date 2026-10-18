@@ -1,0 +1,6 @@
+name = "evolution-bot"
+compatibility_date = "2024-04-18"
+
+[vars]
+PORT = "3001"
+AI_API_KEY = "SUA_CHAVE_AQUI"
